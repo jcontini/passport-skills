@@ -21,19 +21,13 @@ category: productivity
 abilities:
   - id: read_tasks
     label: "Read your tasks"
-    endpoints:
-      - "GET /rest/v2/tasks"
-      - "GET /rest/v2/tasks/*"
+    read_only: true
   - id: write_tasks
     label: "Create and modify tasks"
-    endpoints:
-      - "POST /rest/v2/tasks"
-      - "POST /rest/v2/tasks/*"
   - id: delete_tasks
     label: "Delete tasks"
-    destructive: true
-    endpoints:
-      - "DELETE /rest/v2/tasks/*"
+  - id: manage_projects
+    label: "Manage projects"
 
 auth:
   type: api_key
@@ -86,10 +80,10 @@ Users can have different abilities per account (e.g., Personal has full access, 
 
 | Skill | Category | Description |
 |-------|----------|-------------|
-| [Todoist](skills/todoist.md) | Productivity | Personal task management |
-| [Linear](skills/linear.md) | Productivity | Issue tracking and project management |
-| [Exa](skills/exa.md) | Search | Semantic web search |
-| [Raindrop](skills/raindrop.md) | Productivity | Bookmark management |
+| [Todoist](skills/todoist/skill.md) | Productivity | Personal task management |
+| [Linear](skills/linear/skill.md) | Productivity | Issue tracking and project management |
+| [Exa](skills/exa/skill.md) | Search | Semantic web search |
+| [Raindrop](skills/raindrop/skill.md) | Productivity | Bookmark management |
 
 ## Using Skills
 
@@ -98,8 +92,10 @@ Skills are fetched by the Passport app when you browse and install them.
 1. Open Passport → Apps tab
 2. Browse available skills
 3. Click "Install" on any skill
-4. Connect your account (API key or OAuth)
+4. Connect your account (API key)
 5. Your AI agents can now use that service
+
+**Updating Skills:** Click "Update Skill Definition" in the app detail view to re-download the latest version from this repo.
 
 ## Contributing
 
