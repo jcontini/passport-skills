@@ -18,6 +18,19 @@ const script = process.env.PARAM_SCRIPT;
 const waitMs = parseInt(process.env.PARAM_WAIT_MS || '1000', 10);
 const includeScreenshot = process.env.PARAM_SCREENSHOT === 'true';
 const headless = process.env.SETTING_HEADLESS !== 'false';
+const slowMo = parseInt(process.env.SETTING_SLOW_MO || '0', 10);
+const timeout = parseInt(process.env.SETTING_TIMEOUT || '30', 10) * 1000;
+const locale = process.env.SETTING_LOCALE || 'en-US';
+const userAgentSetting = process.env.SETTING_USER_AGENT || 'chrome';
+
+const userAgents = {
+  chrome: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+  firefox: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:121.0) Gecko/20100101 Firefox/121.0',
+  safari: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.2 Safari/605.1.15',
+  mobile: 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_2 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.2 Mobile/15E148 Safari/604.1'
+};
+
+const userAgent = userAgents[userAgentSetting] || userAgents.chrome;
 const downloadsDir = process.env.AGENTOS_DOWNLOADS || join(homedir(), 'Downloads');
 
 // Collected diagnostics
@@ -27,9 +40,11 @@ const networkRequests = [];
 const networkErrors = [];
 
 async function run() {
-  const browser = await chromium.launch({ headless });
+  const browser = await chromium.launch({ headless, slowMo });
   const context = await browser.newContext({
-    viewport: { width: 1280, height: 800 }
+    viewport: { width: 1280, height: 800 },
+    userAgent,
+    locale
   });
   const page = await context.newPage();
   

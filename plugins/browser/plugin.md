@@ -12,6 +12,35 @@ settings:
     description: Run browser invisibly (off = you can watch the browser)
     type: boolean
     default: "true"
+  slow_mo:
+    label: Slow Motion (ms)
+    description: Delay between actions when watching (0 = full speed)
+    type: integer
+    default: "0"
+    min: 0
+    max: 2000
+  timeout:
+    label: Page Timeout (seconds)
+    description: How long to wait for page load
+    type: integer
+    default: "30"
+    min: 5
+    max: 120
+  user_agent:
+    label: User Agent
+    description: Browser identity to send
+    type: enum
+    default: "chrome"
+    options:
+      - chrome
+      - firefox
+      - safari
+      - mobile
+  locale:
+    label: Language
+    description: Browser locale (e.g. en-US, es-ES, pt-BR)
+    type: string
+    default: "en-US"
 
 requires:
   - name: node
