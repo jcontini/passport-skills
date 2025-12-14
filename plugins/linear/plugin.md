@@ -220,6 +220,9 @@ actions:
       state_id:
         type: string
         description: New state ID (get from list_workflow_states)
+      project_id:
+        type: string
+        description: Project ID (get from list_projects)
       cycle_id:
         type: string
         description: Cycle ID (get from list_cycles, null to remove)
@@ -231,7 +234,7 @@ actions:
         mutation($id: String!, $input: IssueUpdateInput!) {
           issueUpdate(id: $id, input: $input) {
             success
-            issue { id identifier title state { name } url }
+            issue { id identifier title state { name } project { name } url }
           }
         }
       variables:
@@ -241,6 +244,7 @@ actions:
           description: $PARAM_DESCRIPTION
           priority: $PARAM_PRIORITY
           stateId: $PARAM_STATE_ID
+          projectId: $PARAM_PROJECT_ID
           cycleId: $PARAM_CYCLE_ID
           assigneeId: $PARAM_ASSIGNEE_ID
       extract: .data.issueUpdate
