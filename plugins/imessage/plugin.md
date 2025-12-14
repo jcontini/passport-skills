@@ -240,3 +240,4 @@ Get all messages from today.
 - **Date format:** Nanoseconds since macOS epoch (2001-01-01) - converted automatically
 - **Services:** iMessage, SMS, or RCS shown in `service` field
 
+
