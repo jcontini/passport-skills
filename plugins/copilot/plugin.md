@@ -717,5 +717,3 @@ unhide(id: "abc123")
 - **Database**: `~/Library/Group Containers/group.com.copilot.production/database/CopilotDB.sqlite`
 - **Categories**: `~/Library/Group Containers/group.com.copilot.production/widget-data/widgets-category-categories.json`
 - **Journal mode**: WAL (safe concurrent access)
-
-
