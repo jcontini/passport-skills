@@ -1,7 +1,7 @@
 ---
 id: copilot
 name: Copilot Money
-description: Query financial data from Copilot Money's local database
+description: Manage finances in Copilot Money - transactions, categories, and organization
 category: finance
 icon: https://cdn.jim-nielsen.com/ios/512/copilot-track-budget-money-2025-10-31.png
 color: "#00C853"
@@ -12,6 +12,10 @@ requires:
   - jq       # For JSON parsing
 
 actions:
+  # ============================================
+  # READ OPERATIONS
+  # ============================================
+  
   list_transactions:
     description: List recent transactions
     params:
@@ -37,14 +41,55 @@ actions:
           name as merchant,
           amount,
           date(date) as date,
-          account_id,
+          category_id,
           pending,
-          recurring
+          recurring,
+          user_reviewed as reviewed,
+          user_note as note
         FROM Transactions 
-        WHERE 1=1 $DAYS_FILTER
+        WHERE user_deleted = 0 OR user_deleted IS NULL
+        $DAYS_FILTER
         ORDER BY date DESC 
         LIMIT ${PARAM_LIMIT:-30};
       "
+
+  get_transaction:
+    description: Get full details of a specific transaction
+    params:
+      id:
+        type: string
+        required: true
+        description: Transaction ID
+    run: |
+      DB="$HOME/Library/Group Containers/group.com.copilot.production/database/CopilotDB.sqlite"
+      CATEGORIES="$HOME/Library/Group Containers/group.com.copilot.production/widget-data/widgets-category-categories.json"
+      require_file "$DB"
+      
+      CATS=$(cat "$CATEGORIES" 2>/dev/null || echo '[]')
+      
+      sqlite3 "$DB" -json "
+        SELECT 
+          id,
+          name as merchant,
+          original_name,
+          name_override,
+          amount,
+          date(date) as date,
+          category_id,
+          plaid_category_strings,
+          type,
+          pending,
+          recurring,
+          recurring_id,
+          user_reviewed as reviewed,
+          user_note as note,
+          user_deleted as hidden
+        FROM Transactions 
+        WHERE id = '$PARAM_ID';
+      " | jq --argjson cats "$CATS" '
+        ($cats | map({(.id): .name}) | add // {}) as $catMap |
+        .[0] | . + {category_name: ($catMap[.category_id] // "Unknown")}
+      '
 
   search:
     description: Search transactions by merchant name
@@ -63,15 +108,64 @@ actions:
       
       sqlite3 "$DB" -json "
         SELECT 
+          id,
           name as merchant,
           amount,
           date(date) as date,
-          account_id
+          category_id,
+          user_reviewed as reviewed
         FROM Transactions 
         WHERE name LIKE '%$PARAM_QUERY%'
+          AND (user_deleted = 0 OR user_deleted IS NULL)
         ORDER BY date DESC 
         LIMIT ${PARAM_LIMIT:-30};
       "
+
+  unreviewed:
+    description: List transactions needing review (not yet categorized by user)
+    params:
+      limit:
+        type: number
+        default: 50
+        description: Max transactions to return
+      days:
+        type: number
+        default: 30
+        description: Only transactions from last N days
+    run: |
+      DB="$HOME/Library/Group Containers/group.com.copilot.production/database/CopilotDB.sqlite"
+      CATEGORIES="$HOME/Library/Group Containers/group.com.copilot.production/widget-data/widgets-category-categories.json"
+      require_file "$DB"
+      
+      CATS=$(cat "$CATEGORIES" 2>/dev/null || echo '[]')
+      
+      sqlite3 "$DB" -json "
+        SELECT 
+          id,
+          name as merchant,
+          amount,
+          date(date) as date,
+          category_id,
+          plaid_category_strings
+        FROM Transactions 
+        WHERE (user_reviewed = 0 OR user_reviewed IS NULL)
+          AND (user_deleted = 0 OR user_deleted IS NULL)
+          AND date >= date('now', '-${PARAM_DAYS:-30} days')
+          AND type = 'regular'
+        ORDER BY date DESC 
+        LIMIT ${PARAM_LIMIT:-50};
+      " | jq --argjson cats "$CATS" '
+        ($cats | map({(.id): .name}) | add // {}) as $catMap |
+        [.[] | . + {category_name: ($catMap[.category_id] // "Uncategorized")}]
+      '
+
+  list_categories:
+    description: List all available categories with IDs (for recategorization)
+    run: |
+      CATEGORIES="$HOME/Library/Group Containers/group.com.copilot.production/widget-data/widgets-category-categories.json"
+      require_file "$CATEGORIES"
+      
+      cat "$CATEGORIES" | jq '[.[] | {id: .id, name: .name, excluded: .excluded}]'
 
   spending_by_month:
     description: Get monthly spending totals (excludes payments/transfers)
@@ -92,12 +186,8 @@ actions:
         FROM Transactions 
         WHERE amount < 0 
           AND date >= date('now', '-${PARAM_MONTHS:-3} months')
-          AND name NOT LIKE '%AUTOPAY%'
-          AND name NOT LIKE '%AUTOMATIC PAYMENT%'
-          AND name NOT LIKE '%SCHWAB%'
-          AND name NOT LIKE '%FEDWIRE%'
-          AND name NOT LIKE '%MONEYLINK%'
-          AND name NOT LIKE '%ZELLE%'
+          AND type = 'regular'
+          AND (user_deleted = 0 OR user_deleted IS NULL)
         GROUP BY month 
         ORDER BY month DESC;
       "
@@ -127,19 +217,15 @@ actions:
         FROM Transactions 
         WHERE amount < 0 
           AND date >= date('now', '-${PARAM_MONTHS:-3} months')
-          AND name NOT LIKE '%AUTOPAY%'
-          AND name NOT LIKE '%AUTOMATIC PAYMENT%'
-          AND name NOT LIKE '%SCHWAB%'
-          AND name NOT LIKE '%FEDWIRE%'
-          AND name NOT LIKE '%MONEYLINK%'
-          AND name NOT LIKE '%ZELLE%'
+          AND type = 'regular'
+          AND (user_deleted = 0 OR user_deleted IS NULL)
         GROUP BY name 
         ORDER BY total_spending DESC
         LIMIT ${PARAM_LIMIT:-25};
       "
 
   spending_by_category:
-    description: Get spending grouped by Plaid category (excludes payments/transfers)
+    description: Get spending grouped by category
     params:
       months:
         type: number
@@ -147,25 +233,27 @@ actions:
         description: Number of months to include
     run: |
       DB="$HOME/Library/Group Containers/group.com.copilot.production/database/CopilotDB.sqlite"
+      CATEGORIES="$HOME/Library/Group Containers/group.com.copilot.production/widget-data/widgets-category-categories.json"
       require_file "$DB"
+      
+      CATS=$(cat "$CATEGORIES" 2>/dev/null || echo '[]')
       
       sqlite3 "$DB" -json "
         SELECT 
-          COALESCE(plaid_category_strings, '[\"Uncategorized\"]') as category,
+          category_id,
           ROUND(ABS(SUM(amount)), 2) as total_spending,
           COUNT(*) as transaction_count
         FROM Transactions 
         WHERE amount < 0 
           AND date >= date('now', '-${PARAM_MONTHS:-3} months')
-          AND name NOT LIKE '%AUTOPAY%'
-          AND name NOT LIKE '%AUTOMATIC PAYMENT%'
-          AND name NOT LIKE '%SCHWAB%'
-          AND name NOT LIKE '%FEDWIRE%'
-          AND name NOT LIKE '%MONEYLINK%'
-          AND name NOT LIKE '%ZELLE%'
-        GROUP BY plaid_category_strings 
+          AND type = 'regular'
+          AND (user_deleted = 0 OR user_deleted IS NULL)
+        GROUP BY category_id 
         ORDER BY total_spending DESC;
-      " | jq '[.[] | .category = (.category | fromjson | join(" > "))]'
+      " | jq --argjson cats "$CATS" '
+        ($cats | map({(.id): .name}) | add // {}) as $catMap |
+        [.[] | . + {category_name: ($catMap[.category_id] // "Uncategorized")}]
+      '
 
   balances:
     description: Get latest account balances
@@ -263,120 +351,371 @@ actions:
         FROM Transactions 
         WHERE recurring = 1
           AND amount < 0
+          AND (user_deleted = 0 OR user_deleted IS NULL)
         GROUP BY name, recurring_id
         ORDER BY avg_amount DESC;
       "
+
+  hidden:
+    description: List hidden/deleted transactions
+    params:
+      limit:
+        type: number
+        default: 50
+        description: Max transactions to return
+    run: |
+      DB="$HOME/Library/Group Containers/group.com.copilot.production/database/CopilotDB.sqlite"
+      require_file "$DB"
+      
+      sqlite3 "$DB" -json "
+        SELECT 
+          id,
+          name as merchant,
+          amount,
+          date(date) as date,
+          category_id
+        FROM Transactions 
+        WHERE user_deleted = 1
+        ORDER BY date DESC 
+        LIMIT ${PARAM_LIMIT:-50};
+      "
+
+  # ============================================
+  # WRITE OPERATIONS
+  # ============================================
+
+  recategorize:
+    description: Change category on a single transaction
+    params:
+      id:
+        type: string
+        required: true
+        description: Transaction ID
+      category_id:
+        type: string
+        required: true
+        description: New category ID (use list_categories to get IDs)
+    run: |
+      DB="$HOME/Library/Group Containers/group.com.copilot.production/database/CopilotDB.sqlite"
+      require_file "$DB"
+      
+      sqlite3 "$DB" "
+        UPDATE Transactions 
+        SET category_id = '$PARAM_CATEGORY_ID', 
+            user_reviewed = 1 
+        WHERE id = '$PARAM_ID';
+      "
+      
+      # Return updated transaction
+      sqlite3 "$DB" -json "
+        SELECT id, name as merchant, category_id, user_reviewed as reviewed 
+        FROM Transactions WHERE id = '$PARAM_ID';
+      "
+
+  recategorize_merchant:
+    description: Recategorize ALL transactions from a merchant (bulk operation)
+    params:
+      merchant:
+        type: string
+        required: true
+        description: Merchant name (exact match)
+      category_id:
+        type: string
+        required: true
+        description: New category ID
+    run: |
+      DB="$HOME/Library/Group Containers/group.com.copilot.production/database/CopilotDB.sqlite"
+      require_file "$DB"
+      
+      # Count before
+      COUNT=$(sqlite3 "$DB" "SELECT COUNT(*) FROM Transactions WHERE name = '$PARAM_MERCHANT';")
+      
+      sqlite3 "$DB" "
+        UPDATE Transactions 
+        SET category_id = '$PARAM_CATEGORY_ID', 
+            user_reviewed = 1 
+        WHERE name = '$PARAM_MERCHANT';
+      "
+      
+      echo "{\"updated\": $COUNT, \"merchant\": \"$PARAM_MERCHANT\", \"category_id\": \"$PARAM_CATEGORY_ID\"}"
+
+  add_note:
+    description: Add or update note on a transaction
+    params:
+      id:
+        type: string
+        required: true
+        description: Transaction ID
+      note:
+        type: string
+        required: true
+        description: Note text
+    run: |
+      DB="$HOME/Library/Group Containers/group.com.copilot.production/database/CopilotDB.sqlite"
+      require_file "$DB"
+      
+      # Escape single quotes in note
+      ESCAPED_NOTE=$(echo "$PARAM_NOTE" | sed "s/'/''/g")
+      
+      sqlite3 "$DB" "
+        UPDATE Transactions 
+        SET user_note = '$ESCAPED_NOTE'
+        WHERE id = '$PARAM_ID';
+      "
+      
+      sqlite3 "$DB" -json "
+        SELECT id, name as merchant, user_note as note 
+        FROM Transactions WHERE id = '$PARAM_ID';
+      "
+
+  rename:
+    description: Set custom merchant name override
+    params:
+      id:
+        type: string
+        required: true
+        description: Transaction ID
+      name:
+        type: string
+        required: true
+        description: Custom merchant name
+    run: |
+      DB="$HOME/Library/Group Containers/group.com.copilot.production/database/CopilotDB.sqlite"
+      require_file "$DB"
+      
+      ESCAPED_NAME=$(echo "$PARAM_NAME" | sed "s/'/''/g")
+      
+      sqlite3 "$DB" "
+        UPDATE Transactions 
+        SET name_override = '$ESCAPED_NAME'
+        WHERE id = '$PARAM_ID';
+      "
+      
+      sqlite3 "$DB" -json "
+        SELECT id, name as merchant, name_override, original_name 
+        FROM Transactions WHERE id = '$PARAM_ID';
+      "
+
+  change_type:
+    description: Change transaction type (regular, internal_transfer, income)
+    params:
+      id:
+        type: string
+        required: true
+        description: Transaction ID
+      type:
+        type: string
+        required: true
+        description: "New type: regular, internal_transfer, or income"
+    run: |
+      DB="$HOME/Library/Group Containers/group.com.copilot.production/database/CopilotDB.sqlite"
+      require_file "$DB"
+      
+      # Validate type
+      if [ "$PARAM_TYPE" != "regular" ] && [ "$PARAM_TYPE" != "internal_transfer" ] && [ "$PARAM_TYPE" != "income" ]; then
+        echo '{"error": "Invalid type. Must be: regular, internal_transfer, or income"}'
+        exit 1
+      fi
+      
+      sqlite3 "$DB" "
+        UPDATE Transactions 
+        SET type = '$PARAM_TYPE', 
+            user_changed_type = 1 
+        WHERE id = '$PARAM_ID';
+      "
+      
+      sqlite3 "$DB" -json "
+        SELECT id, name as merchant, type, user_changed_type 
+        FROM Transactions WHERE id = '$PARAM_ID';
+      "
+
+  hide:
+    description: Hide/delete a transaction (soft delete - excludes from reports)
+    params:
+      id:
+        type: string
+        required: true
+        description: Transaction ID
+    run: |
+      DB="$HOME/Library/Group Containers/group.com.copilot.production/database/CopilotDB.sqlite"
+      require_file "$DB"
+      
+      sqlite3 "$DB" "
+        UPDATE Transactions 
+        SET user_deleted = 1 
+        WHERE id = '$PARAM_ID';
+      "
+      
+      sqlite3 "$DB" -json "
+        SELECT id, name as merchant, user_deleted as hidden 
+        FROM Transactions WHERE id = '$PARAM_ID';
+      "
+
+  unhide:
+    description: Restore a hidden transaction
+    params:
+      id:
+        type: string
+        required: true
+        description: Transaction ID
+    run: |
+      DB="$HOME/Library/Group Containers/group.com.copilot.production/database/CopilotDB.sqlite"
+      require_file "$DB"
+      
+      sqlite3 "$DB" "
+        UPDATE Transactions 
+        SET user_deleted = 0 
+        WHERE id = '$PARAM_ID';
+      "
+      
+      sqlite3 "$DB" -json "
+        SELECT id, name as merchant, user_deleted as hidden 
+        FROM Transactions WHERE id = '$PARAM_ID';
+      "
+
+  mark_reviewed:
+    description: Mark transaction as reviewed (without changing category)
+    params:
+      id:
+        type: string
+        required: true
+        description: Transaction ID
+    run: |
+      DB="$HOME/Library/Group Containers/group.com.copilot.production/database/CopilotDB.sqlite"
+      require_file "$DB"
+      
+      sqlite3 "$DB" "
+        UPDATE Transactions 
+        SET user_reviewed = 1 
+        WHERE id = '$PARAM_ID';
+      "
+      
+      sqlite3 "$DB" -json "
+        SELECT id, name as merchant, user_reviewed as reviewed 
+        FROM Transactions WHERE id = '$PARAM_ID';
+      "
+
+  mark_all_reviewed:
+    description: Mark all unreviewed transactions as reviewed (bulk operation)
+    params:
+      days:
+        type: number
+        default: 30
+        description: Only transactions from last N days
+    run: |
+      DB="$HOME/Library/Group Containers/group.com.copilot.production/database/CopilotDB.sqlite"
+      require_file "$DB"
+      
+      COUNT=$(sqlite3 "$DB" "
+        SELECT COUNT(*) FROM Transactions 
+        WHERE (user_reviewed = 0 OR user_reviewed IS NULL)
+          AND date >= date('now', '-${PARAM_DAYS:-30} days');
+      ")
+      
+      sqlite3 "$DB" "
+        UPDATE Transactions 
+        SET user_reviewed = 1 
+        WHERE (user_reviewed = 0 OR user_reviewed IS NULL)
+          AND date >= date('now', '-${PARAM_DAYS:-30} days');
+      "
+      
+      echo "{\"marked_reviewed\": $COUNT}"
 ---
 
 # Copilot Money
 
-Query financial data from [Copilot Money's](https://copilot.money) local SQLite database. This is read-only access to your accounts, balances, and transactions.
+Manage your finances in [Copilot Money](https://copilot.money) directly through AI. Full read/write access to transactions, categories, and organization.
 
 ## Requirements
 
-- **macOS only** - Reads from local Copilot database
+- **macOS only** - Reads/writes to local Copilot database
 - **Copilot Money app** - Must be installed and synced
 - **jq** - For JSON processing (`brew install jq`)
 
-## Tools
+## Read Tools
 
-### list_transactions
-List recent transactions.
+| Tool | Description |
+|------|-------------|
+| `list_transactions` | List recent transactions |
+| `get_transaction` | Get full details of a specific transaction |
+| `search` | Search transactions by merchant name |
+| `unreviewed` | List transactions needing review |
+| `list_categories` | List available categories with IDs |
+| `spending_by_month` | Monthly spending totals |
+| `spending_by_merchant` | Spending grouped by merchant |
+| `spending_by_category` | Spending grouped by category |
+| `balances` | Current account balances |
+| `net_worth` | Net worth with account breakdown |
+| `recurring` | List recurring transactions |
+| `hidden` | List hidden/deleted transactions |
 
-**Parameters:**
-- `limit` (optional): Number of transactions, default 30
-- `days` (optional): Only transactions from last N days
+## Write Tools
 
-**Examples:**
+| Tool | Description |
+|------|-------------|
+| `recategorize` | Change category on a transaction |
+| `recategorize_merchant` | Bulk recategorize all transactions from a merchant |
+| `add_note` | Add/update note on a transaction |
+| `rename` | Set custom merchant name |
+| `change_type` | Change type (regular/transfer/income) |
+| `hide` | Hide transaction from reports |
+| `unhide` | Restore hidden transaction |
+| `mark_reviewed` | Mark transaction as reviewed |
+| `mark_all_reviewed` | Bulk mark all as reviewed |
+
+## Common Workflows
+
+### Review and categorize transactions
 ```
-use-plugin(plugin: "copilot", tool: "list_transactions")
-use-plugin(plugin: "copilot", tool: "list_transactions", params: {limit: 10, days: 7})
-```
+# 1. Get unreviewed transactions
+unreviewed(days: 7)
 
-### search
-Search transactions by merchant name.
+# 2. Get available categories
+list_categories()
 
-**Parameters:**
-- `query` (required): Merchant name to search for
-- `limit` (optional): Max results, default 30
+# 3. Recategorize a transaction
+recategorize(id: "abc123", category_id: "4P0OGwQa757X8J9N5ZA2")
 
-**Examples:**
-```
-use-plugin(plugin: "copilot", tool: "search", params: {query: "COSTCO"})
-use-plugin(plugin: "copilot", tool: "search", params: {query: "Amazon", limit: 50})
-```
-
-### spending_by_month
-Get monthly spending totals (excludes payments and transfers).
-
-**Parameters:**
-- `months` (optional): Number of months to include, default 3
-
-**Example:**
-```
-use-plugin(plugin: "copilot", tool: "spending_by_month", params: {months: 6})
-```
-
-### spending_by_merchant
-Get spending grouped by merchant (excludes payments and transfers).
-
-**Parameters:**
-- `months` (optional): Number of months to include, default 3
-- `limit` (optional): Max merchants to return, default 25
-
-**Example:**
-```
-use-plugin(plugin: "copilot", tool: "spending_by_merchant", params: {months: 1})
+# 4. Or bulk recategorize all from a merchant
+recategorize_merchant(merchant: "TRADER JOE'S", category_id: "y2xtHJ2HbGucRPsm4eXv")
 ```
 
-### spending_by_category
-Get spending grouped by Plaid category (excludes payments and transfers).
-
-**Parameters:**
-- `months` (optional): Number of months to include, default 3
-
-**Example:**
+### Add notes and organize
 ```
-use-plugin(plugin: "copilot", tool: "spending_by_category")
-```
+# Add context to a transaction
+add_note(id: "abc123", note: "Business dinner with client")
 
-### balances
-Get latest account balances with account names.
+# Rename confusing merchant
+rename(id: "abc123", name: "Costco Gas")
 
-**Example:**
-```
-use-plugin(plugin: "copilot", tool: "balances")
+# Mark as transfer instead of spending
+change_type(id: "abc123", type: "internal_transfer")
 ```
 
-### net_worth
-Calculate net worth with full account breakdown. Distinguishes between assets and liabilities (credit accounts).
-
-**Example:**
+### Hide unwanted transactions
 ```
-use-plugin(plugin: "copilot", tool: "net_worth")
-```
+# Hide a transaction
+hide(id: "abc123")
 
-### recurring
-List all recurring transactions with average amounts.
+# View hidden transactions
+hidden()
 
-**Example:**
-```
-use-plugin(plugin: "copilot", tool: "recurring")
+# Restore if needed
+unhide(id: "abc123")
 ```
 
 ## Notes
 
-- **Read-only** - Cannot modify transactions or accounts
-- **Amount signs:** Negative = spending, positive = income/refunds
-- **Spending filters:** Spending reports exclude credit card payments, investment transfers, wire transfers, and Zelle payments
-- **Account types:** Credit accounts (from `credit_accounts.json`) are treated as liabilities; others as assets
-- **Categories:** Uses Plaid category strings (e.g., "Shops > Clothing") when available
+- **Sync behavior**: User changes (category, notes, type) persist across Plaid syncs
+- **Amount signs**: Negative = spending, positive = income/refunds
+- **Categories**: Use `list_categories` to get valid category IDs before recategorizing
+- **Bulk ops**: Use `recategorize_merchant` to set up "merchant rules" - all past and future transactions from that merchant will keep your category
+- **What's NOT writable locally**: Budget amounts, tag definitions, and account settings are stored in Copilot's cloud (Firestore) and can't be modified locally
 
 ## Database Details
 
-- **Database:** `~/Library/Group Containers/group.com.copilot.production/database/CopilotDB.sqlite`
-- **Account names:** `~/Library/Group Containers/group.com.copilot.production/widget-data/widgets-account-*.json`
-- **Date format:** `YYYY-MM-DD HH:MM:SS.000`
-
+- **Database**: `~/Library/Group Containers/group.com.copilot.production/database/CopilotDB.sqlite`
+- **Categories**: `~/Library/Group Containers/group.com.copilot.production/widget-data/widgets-category-categories.json`
+- **Journal mode**: WAL (safe concurrent access)
 
 
