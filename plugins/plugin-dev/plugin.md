@@ -95,16 +95,54 @@ actions:
       fi
       echo ""
       
-      # Check actions have descriptions
+      # Check actions for AI-friendliness
       echo "## Actions"
+      HAS_READONLY=0
       yq '.actions | keys | .[]' "$TMPYAML" | while read -r action; do
         DESC=$(yq ".actions.$action.description" "$TMPYAML" | grep -v '^null$')
+        READONLY=$(yq ".actions.$action.readonly" "$TMPYAML")
+        
+        # Check action name length
+        if [ ${#action} -gt 15 ]; then
+          echo "⚠️  $action: name too long (${#action} chars) - keep under 15"
+        fi
+        
+        # Check description
         if [ -n "$DESC" ]; then
-          echo "✅ $action: $DESC"
+          DESC_LEN=${#DESC}
+          if [ $DESC_LEN -gt 50 ]; then
+            echo "⚠️  $action: description too long ($DESC_LEN chars) - keep under 50"
+          else
+            echo "✅ $action: $DESC"
+          fi
         else
           echo "❌ $action: missing description"
         fi
+        
+        # Track readonly
+        if [ "$READONLY" = "true" ]; then
+          HAS_READONLY=1
+        fi
       done
+      echo ""
+      
+      # Check for readonly actions (AI-first design)
+      echo "## AI-First Design"
+      READONLY_COUNT=$(yq '[.actions[] | select(.readonly == true)] | length' "$TMPYAML")
+      ACTION_COUNT=$(yq '.actions | keys | length' "$TMPYAML")
+      if [ "$READONLY_COUNT" -eq 0 ]; then
+        echo "⚠️  No readonly actions - mark read-only actions with 'readonly: true' for one-shot AI calls"
+      else
+        echo "✅ $READONLY_COUNT/$ACTION_COUNT actions marked readonly"
+      fi
+      
+      # Check for token-inefficient patterns in markdown body
+      if grep -q '•' "$PARAM_PATH"; then
+        echo "⚠️  Uses '•' bullets - use '-' instead (fewer tokens)"
+      fi
+      if grep -q '—' "$PARAM_PATH"; then
+        echo "⚠️  Uses '—' em-dash - use ':' or '-' instead (fewer tokens)"
+      fi
       echo ""
       
       echo "✅ Audit complete"
@@ -286,22 +324,83 @@ Browse icons: https://icon-sets.iconify.design/
 
 Unknown categories automatically map to "Other".
 
+## AI-First Design
+
+Plugins are used by AI agents. Design from their perspective.
+
+### Naming
+
+Action and param names should be short, clear verbs:
+
+- **Good**: `list`, `get`, `create`, `search`, `query`, `id`, `filter`
+- **Bad**: `get_all_items_from_database`, `inputQueryString`, `fetchUserData`
+
+Keep action names under 15 characters.
+
+### Descriptions
+
+Keep descriptions under 50 characters. Be direct:
+
+- **Good**: `List all tasks` (14 chars)
+- **Bad**: `This action retrieves all tasks from the database` (50 chars)
+
+### Token Efficiency
+
+In your markdown documentation, use token-efficient formatting:
+
+- Use `-` not `•` for bullets (1 token vs 2-3)
+- Use `:` or `-` not `—` for separators (1 token vs 2-3)
+- Use tabs not spaces for indentation (1 token)
+
+### Read-Only Actions
+
+Mark safe actions with `readonly: true` so they appear inline in UseTool:
+
+```yaml
+actions:
+  list:
+    description: List all tasks
+    readonly: true  # Appears in one-shot list
+  create:
+    description: Create a task
+    # readonly defaults to false - requires ToolHelp first
+```
+
+Read-only actions let AI call them immediately without calling ToolHelp first.
+
+### Helpful Errors
+
+When something fails, tell the AI how to fix it:
+
+```bash
+# Bad
+error "Invalid parameter"
+
+# Good
+error "Missing id param. Usage: get(id). Call ToolHelp(tool='my-plugin') for details."
+```
+
 ## Best Practices
 
-### Do ✅
+### Do
 
 - Use `helpers:` for shared logic
 - Use `error()` for failures (visible in activity log)
 - Keep `run:` blocks simple (call helpers)
 - Use `$PLUGIN_DIR` for scripts, not hardcoded paths
 - Return JSON for structured data
+- Mark read-only actions with `readonly: true`
+- Keep action names short (under 15 chars)
+- Keep descriptions concise (under 50 chars)
 
-### Don't ❌
+### Don't
 
 - Suppress stderr (`2>/dev/null` hides errors)
 - Use complex inline scripts (use helpers or scripts/)
 - Hardcode paths (use env vars)
 - Ignore exit codes
+- Use long verbose action names
+- Use token-heavy formatting (bullets, em-dashes)
 
 ## Param Types
 
@@ -348,6 +447,9 @@ When reviewing a plugin, check:
 4. **Paths**: Uses `$PLUGIN_DIR`, `$AGENTOS_DOWNLOADS`, not hardcoded
 5. **Params**: All required params have descriptions
 6. **Docs**: Markdown body explains usage clearly
+7. **AI-First**: Short names, concise descriptions, readonly marked, token-efficient
+
+The audit tool checks all of these automatically.
 
 
 ## Cursor MCP Connection Issues
@@ -371,7 +473,7 @@ To contribute a plugin to the public repo:
 2. Create your plugin in `plugins/{id}/plugin.md`
 3. Run the audit tool to check for issues:
    ```
-   UsePlugin(plugin: "plugin-dev", tool: "audit", params: {path: "plugins/my-plugin/plugin.md"})
+   UseTool(tool: "plugin-dev", action: "audit", params: {path: "plugins/my-plugin/plugin.md"})
    ```
 4. Test locally by setting your fork as the plugins source in AgentOS Settings
 5. Submit a PR
