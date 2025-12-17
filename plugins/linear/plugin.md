@@ -269,6 +269,24 @@ actions:
           parentId: $PARAM_PARENT_ID
       extract: .data.issueUpdate
 
+  delete_issue:
+    description: Permanently delete an issue
+    params:
+      id:
+        type: string
+        required: true
+        description: Issue ID or identifier (e.g., "DEV-123")
+    graphql:
+      query: |
+        mutation($id: String!) {
+          issueDelete(id: $id) {
+            success
+          }
+        }
+      variables:
+        id: $PARAM_ID
+      extract: .data.issueDelete
+
   # =============================================================================
   # ISSUE RELATIONSHIPS
   # =============================================================================
@@ -407,6 +425,7 @@ Get your API key from: https://linear.app/settings/api
 |------|---------|-----------------|
 | `create_issue` | Create new issue | team_id, title |
 | `update_issue` | Update issue | id |
+| `delete_issue` | Permanently delete issue | id |
 | `add_related` | Mark two issues as related | issue_id, related_issue_id |
 | `add_blocking` | A blocks B | blocker_id, blocked_id |
 | `remove_relation` | Remove relation | relation_id |
