@@ -376,5 +376,3 @@ main().catch(err => {
   console.error(`[browser-daemon] Fatal error: ${err.message}`);
   process.exit(1);
 });
-
-

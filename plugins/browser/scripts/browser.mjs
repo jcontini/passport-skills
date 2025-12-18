@@ -469,11 +469,16 @@ async function playStepBrowserMode(page, step) {
       await page.setViewportSize({ width: step.width, height: step.height });
       break;
       
-    case 'navigate':
-      await page.goto(step.url, { waitUntil: 'domcontentloaded', timeout: 30000 });
-      await page.waitForTimeout(500);
+    case 'navigate': {
+      // Only navigate if not already on that URL (click may have already triggered navigation)
+      const currentUrl = page.url();
+      if (currentUrl !== step.url && !currentUrl.includes(new URL(step.url).pathname)) {
+        await page.goto(step.url, { waitUntil: 'domcontentloaded', timeout: 30000 });
+        await page.waitForTimeout(500);
+      }
       break;
-      
+    }
+
     case 'click': {
       // Try multiple selectors until one works
       const selector = await findWorkingSelector(page, step, actionTimeout);
@@ -558,11 +563,16 @@ async function playStepNativeMode(page, step) {
       await page.setViewportSize({ width: step.width, height: step.height });
       break;
       
-    case 'navigate':
-      await page.goto(step.url, { waitUntil: 'domcontentloaded', timeout: 30000 });
-      await page.waitForTimeout(500);
+    case 'navigate': {
+      // Only navigate if not already on that URL (click may have already triggered navigation)
+      const currentUrl = page.url();
+      if (currentUrl !== step.url && !currentUrl.includes(new URL(step.url).pathname)) {
+        await page.goto(step.url, { waitUntil: 'domcontentloaded', timeout: 30000 });
+        await page.waitForTimeout(500);
+      }
       break;
-      
+    }
+
     case 'click': {
       const selector = getSelector(step);
       const coords = await getScreenCoordinates(page, selector, 'center');
