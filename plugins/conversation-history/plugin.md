@@ -7,9 +7,6 @@ color: "#8B5CF6"
 
 tags: [conversation history, Cursor chats, Claude chats, ChatGPT history]
 
-auth:
-  type: local
-
 requires:
   - python3
 
