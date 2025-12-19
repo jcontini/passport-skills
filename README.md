@@ -15,8 +15,7 @@ flowchart LR
         Agents(["🤖 Agents"]) -->|use| Actions(["⚙️ Actions"])
         Plugins -->|define| Actions
         Actions -->|produce| Activities(["📋 Activities"])
-        Plugins -->|have| Accounts(["👤 Accounts"])
-        Accounts -->|store| Credentials(["🔑 Credentials"])
+        Plugins -->|have| Credentials(["🔑 Credentials"])
     end
     
     style Container fill:#1a1a2e,stroke:#4a4a6a,stroke-width:2px,rx:10,ry:10
@@ -25,15 +24,13 @@ flowchart LR
     style Agents fill:#78350f,stroke:#f59e0b,stroke-width:2px,color:#fef3c7
     style Actions fill:#7c2d12,stroke:#f97316,stroke-width:2px,color:#ffedd5
     style Activities fill:#374151,stroke:#9ca3af,stroke-width:2px,color:#f3f4f6
-    style Accounts fill:#1e3a5f,stroke:#3b82f6,stroke-width:2px,color:#dbeafe
     style Credentials fill:#064e3b,stroke:#10b981,stroke-width:2px,color:#d1fae5
     
     linkStyle 0 stroke:#14b8a6,stroke-width:2px
     linkStyle 1 stroke:#f59e0b,stroke-width:2px
     linkStyle 2 stroke:#a78bfa,stroke-width:2px
     linkStyle 3 stroke:#f97316,stroke-width:2px
-    linkStyle 4 stroke:#3b82f6,stroke-width:2px
-    linkStyle 5 stroke:#10b981,stroke-width:2px
+    linkStyle 4 stroke:#10b981,stroke-width:2px
 ```
 
 | Entity | Description |
@@ -43,8 +40,7 @@ flowchart LR
 | **Agents** | AI assistants (Claude, Cursor, Windsurf) |
 | **Actions** | Operations a plugin can perform |
 | **Activities** | Log of every action execution |
-| **Accounts** | Named credentials (Personal, Work) |
-| **Credentials** | API keys, tokens, connection strings |
+| **Credentials** | API keys, tokens stored per plugin (supports multiple: Personal, Work) |
 
 ### Plugin Lifecycle
 
@@ -77,9 +73,9 @@ Operations a plugin can perform. Two modes:
 
 Naming convention: `get_*`, `create_*`, `update_*`, `delete_*`, `search`
 
-### Accounts
+### Credentials
 
-All plugins support multiple accounts (Personal, Work, etc.) at the AgentOS level.
+All plugins support multiple named credentials (Personal, Work, AgentOS, etc.). When multiple credentials exist for a plugin, the AI must specify which to use via the `account` parameter.
 
 ## What's a Plugin?
 
