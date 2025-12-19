@@ -127,6 +127,19 @@ Instructions for AI go here...
 3. Add credentials if required
 4. AI agents can now use it via MCP
 
+## Development Setup
+
+```bash
+git clone https://github.com/agentos/agentos-plugins
+cd agentos-plugins
+./setup.sh  # Configures security hooks
+```
+
+The setup script enables pre-commit hooks that block insecure patterns:
+- `$AUTH_TOKEN` exposure
+- `curl`/`wget` usage (use `rest:` or `http:` blocks instead)
+- Bearer token interpolation
+
 ## Contributing
 
 See **[CONTRIBUTING.md](CONTRIBUTING.md)** for the complete guide:
