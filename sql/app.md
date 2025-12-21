@@ -3,8 +3,8 @@ id: sql
 name: SQL
 description: Query SQL databases (Postgres, MySQL, SQLite), returns JSON
 category: code
-icon: https://cdn.simpleicons.org/postgresql
-color: "#4169E1"
+icon: material-symbols:database
+color: "#6366F1"
 
 topics: [database, sql, postgres, mysql, sqlite]
 
