@@ -257,6 +257,28 @@ actions:
           status: "'done'"
           connector: "'linear'"
 
+  reopen:
+    # Linear: set state back to an open state (caller provides state_id)
+    graphql:
+      query: |
+        mutation($id: String!, $input: IssueUpdateInput!) {
+          issueUpdate(id: $id, input: $input) {
+            success
+            issue { id identifier state { name type } }
+          }
+        }
+      variables:
+        id: "{{params.id}}"
+        input:
+          stateId: "{{params.state_id}}"  # Caller needs to provide open state ID
+      response:
+        root: "data.issueUpdate.issue"
+        mapping:
+          id: ".id"
+          source_id: ".identifier"
+          status: "'open'"
+          connector: "'linear'"
+
   delete:
     graphql:
       query: |
