@@ -117,6 +117,18 @@ actions:
         static:
           success: true
 
+  move:
+    rest:
+      method: POST
+      url: https://api.todoist.com/sync/v9/sync
+      encoding: form
+      body:
+        commands: '[{"type":"item_move","uuid":"move-{{params.id}}","args":{"id":"{{params.id}}","project_id":"{{params.project_id}}"}}]'
+      response:
+        static:
+          id: "{{params.id}}"
+          connector: "todoist"
+
   projects:
     rest:
       method: GET

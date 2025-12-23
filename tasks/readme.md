@@ -248,6 +248,23 @@ actions:
         description: Which connector the task is from
     returns: void
 
+  move:
+    description: Move a task to a different project
+    params:
+      id:
+        type: string
+        required: true
+        description: Task ID to move
+      project_id:
+        type: string
+        required: true
+        description: Destination project ID
+      connector:
+        type: string
+        required: true
+        description: Which connector the task is from
+    returns: task
+
   projects:
     description: List all projects
     readonly: true
