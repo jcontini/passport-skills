@@ -1,5 +1,5 @@
 # Linear → Tasks connector mapping
-for: tasks
+# Filename (tasks.yaml) determines which app schema this implements
 
 # Linear-specific helper actions (not part of unified schema)
 extended_actions:
@@ -44,6 +44,7 @@ extended_actions:
 
 actions:
   list:
+    label: "List issues"
     graphql:
       query: |
         query($limit: Int, $teamId: ID, $stateId: ID) {
@@ -111,6 +112,7 @@ actions:
           updated_at: "[].updatedAt"
 
   get:
+    label: "Get issue"
     graphql:
       query: |
         query($id: String!) {
@@ -173,6 +175,7 @@ actions:
           updated_at: ".updatedAt"
 
   create:
+    label: "Create issue"
     graphql:
       query: |
         mutation($input: IssueCreateInput!) {
@@ -205,6 +208,7 @@ actions:
           connector: "'linear'"
 
   update:
+    label: "Update issue"
     graphql:
       query: |
         mutation($id: String!, $input: IssueUpdateInput!) {
@@ -307,6 +311,7 @@ actions:
             connector: "'linear'"
 
   delete:
+    label: "Delete issue"
     graphql:
       query: |
         mutation($id: String!) {
@@ -320,6 +325,7 @@ actions:
           success: ".success"
 
   projects:
+    label: "List projects"
     graphql:
       query: "{ projects { nodes { id name state } } }"
       response:
@@ -331,6 +337,7 @@ actions:
 
   # Relationship actions
   add_blocker:
+    label: "Add blocker"
     graphql:
       query: |
         mutation($input: IssueRelationCreateInput!) {
@@ -350,6 +357,7 @@ actions:
           success: ".success"
 
   remove_blocker:
+    label: "Remove blocker"
     graphql:
       query: |
         mutation($issueId: String!, $relatedIssueId: String!) {
@@ -366,6 +374,7 @@ actions:
           success: ".success"
 
   add_related:
+    label: "Add related issue"
     graphql:
       query: |
         mutation($input: IssueRelationCreateInput!) {
@@ -385,6 +394,7 @@ actions:
           success: ".success"
 
   remove_related:
+    label: "Remove related issue"
     graphql:
       query: |
         mutation($issueId: String!, $relatedIssueId: String!) {

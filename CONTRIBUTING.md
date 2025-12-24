@@ -571,6 +571,7 @@ complete:
     as: lookup
   
   # Step 2: Use the found state ID to complete the issue
+  # Note: {{lookup.data.xxx}} mirrors the GraphQL response structure
   - graphql:
       query: |
         mutation($id: String!, $stateId: String!) {
@@ -585,7 +586,18 @@ complete:
 - Each step can be any executor type (`rest:`, `graphql:`, `sql:`, `applescript:`)
 - `as: name` stores the step's result for later reference
 - Access nested results with path notation: `{{name.data.field[0].subfield}}`
-- Last step's result is returned to the caller
+- **Intermediate steps preserve raw responses** — templates mirror the actual API response structure
+- Last step's result is returned to the caller (with `data.` stripped for cleaner output)
+
+> ✅ **Templates match API response structure**
+>
+> Intermediate steps in chained executors preserve the full response. This means your templates
+> mirror exactly what the API returns:
+>
+> - GraphQL returns `{ "data": { "issue": { ... } } }` → use `{{lookup.data.issue...}}`
+> - REST returns `{ "id": "123", ... }` → use `{{moved.id}}`
+>
+> This makes templates self-documenting — they show the actual path through the API response.
 
 You can mix executor types in a chain:
 
@@ -599,6 +611,9 @@ move_and_log:
   - sql:
       query: "INSERT INTO logs (task_id) VALUES ('{{moved.id}}')"
 ```
+
+> **Note:** REST responses work the same way — the full JSON body is stored as-is, so `{{moved.id}}`
+> accesses the `id` field directly from the response. No special handling needed.
 
 ### REST Encoding Options
 

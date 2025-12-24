@@ -1,8 +1,9 @@
 # Todoist → Tasks connector mapping
-for: tasks
+# Filename (tasks.yaml) determines which app schema this implements
 
 actions:
   list:
+    label: "List tasks"
     rest:
       method: GET
       url: https://api.todoist.com/rest/v2/tasks
@@ -25,6 +26,7 @@ actions:
           connector: "'todoist'"
 
   get:
+    label: "Get task"
     rest:
       method: GET
       url: "https://api.todoist.com/rest/v2/tasks/{{params.id}}"
@@ -44,6 +46,7 @@ actions:
           connector: "'todoist'"
 
   create:
+    label: "Create task"
     rest:
       method: POST
       url: https://api.todoist.com/rest/v2/tasks
@@ -68,6 +71,7 @@ actions:
           connector: "'todoist'"
 
   update:
+    label: "Update task"
     rest:
       method: POST
       url: "https://api.todoist.com/rest/v2/tasks/{{params.id}}"
@@ -90,6 +94,7 @@ actions:
           connector: "'todoist'"
 
   complete:
+    label: "Complete task"
     rest:
       method: POST
       url: "https://api.todoist.com/rest/v2/tasks/{{params.id}}/close"
@@ -100,6 +105,7 @@ actions:
           connector: "todoist"
 
   reopen:
+    label: "Reopen task"
     rest:
       method: POST
       url: "https://api.todoist.com/rest/v2/tasks/{{params.id}}/reopen"
@@ -110,6 +116,7 @@ actions:
           connector: "todoist"
 
   delete:
+    label: "Delete task"
     rest:
       method: DELETE
       url: "https://api.todoist.com/rest/v2/tasks/{{params.id}}"
@@ -118,6 +125,7 @@ actions:
           success: true
 
   move:
+    label: "Move task"
     rest:
       method: POST
       url: https://api.todoist.com/sync/v9/sync
@@ -130,6 +138,7 @@ actions:
           connector: "todoist"
 
   projects:
+    label: "List projects"
     rest:
       method: GET
       url: https://api.todoist.com/rest/v2/projects
@@ -140,6 +149,7 @@ actions:
           connector: "'todoist'"
 
   labels:
+    label: "List labels"
     rest:
       method: GET
       url: https://api.todoist.com/rest/v2/labels
