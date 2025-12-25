@@ -782,13 +782,15 @@ Platform values: `macos`, `windows`, `linux`, `all` (default)
 
 ## Contributing a New Connector
 
-1. **Create provider folder:** `connectors/{provider}/`
+1. **Create provider folder:** `providers/{provider}/`
 
 2. **Add readme.md** with auth config:
    ```yaml
    ---
    id: my-provider
    name: My Provider
+   icon: icon.svg  # or simple-icons:servicename
+   color: "#FF6B35"
    auth:
      type: api_key
      header: Authorization
@@ -796,11 +798,27 @@ Platform values: `macos`, `windows`, `linux`, `all` (default)
    ---
    ```
 
-3. **Add app mapping(s):** `{app-type}.yaml` for each app type supported
+3. **Add icon file** (required):
+   - **Option A:** Local file — add `icon.svg` or `icon.png` to the provider folder
+   - **Option B:** Iconify reference — use `icon: simple-icons:servicename` if available
+   
+   SVG preferred. Icons should be square and work at small sizes (16-32px).
 
-4. **Test locally** by adding to your AgentOS sources
+4. **Add tool mapping(s):** `{tool}.yaml` for each tool supported (e.g., `tasks.yaml`, `messages.yaml`)
 
-5. **Submit PR** to the connectors repo
+5. **Test locally** by adding to your AgentOS sources
+
+6. **Submit PR** to the integrations repo
+
+### Provider Folder Structure
+
+```
+providers/my-provider/
+├── readme.md      # Provider config (auth, icon, instructions)
+├── icon.svg       # Provider icon (SVG preferred)
+├── tasks.yaml     # Tool mapping (if supporting tasks)
+└── messages.yaml  # Tool mapping (if supporting messages)
+```
 
 ---
 

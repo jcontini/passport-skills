@@ -2,7 +2,7 @@
 id: postgres
 name: PostgreSQL
 description: Connect to PostgreSQL databases
-icon: https://cdn.simpleicons.org/postgresql
+icon: simple-icons:postgresql
 color: "#336791"
 
 website: https://www.postgresql.org
@@ -72,5 +72,3 @@ For databases behind a firewall:
 - Large result sets may be truncated
 - Binary columns return base64-encoded data
 - Transactions are not supported (each query is auto-committed)
-
-

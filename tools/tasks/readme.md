@@ -30,7 +30,7 @@ schema:
       type: number
       min: 1
       max: 4
-      description: "Priority: 1=Urgent (P1), 2=High (P2), 3=Medium (P3), 4=Low (P4)"
+      description: "Priority level: 1=Urgent, 2=High, 3=Medium, 4=Low"
     due:
       type: datetime
       description: Due date/time
@@ -165,13 +165,16 @@ actions:
         description: Due date (today, tomorrow, 2025-01-15)
       priority:
         type: number
-        description: "Priority: 0=Urgent, 1=High, 2=Medium, 3=Low"
+        description: "Priority: 1=Urgent, 2=High, 3=Medium, 4=Low"
       project_id:
         type: string
         description: Project ID
       parent_id:
         type: string
         description: Parent task ID (create as subtask)
+      labels:
+        type: array
+        description: Label names to assign (Todoist only)
       connector:
         type: string
         required: true
@@ -382,14 +385,14 @@ The `task` entity represents a to-do item from any source with a normalized sche
 
 ### Priority Mapping
 
-Normalized to 0-3 where **0 = Urgent (P0)**:
+Unified 1-4 scale where **1 = Urgent**:
 
 | Priority | Meaning | Todoist | Linear |
 |----------|---------|---------|--------|
-| 0 | Urgent (P0) | `priority: 4` | `priority: 1` |
-| 1 | High (P1) | `priority: 3` | `priority: 2` |
-| 2 | Medium (P2) | `priority: 2` | `priority: 3` |
-| 3 | Low (P3) | `priority: 1` | `priority: 4` |
+| 1 | Urgent | P1 (red) | Urgent |
+| 2 | High | P2 (orange) | High |
+| 3 | Medium | P3 (blue) | Medium |
+| 4 | Low | P4 (default) | Low |
 
 ## Actions
 
@@ -421,7 +424,11 @@ Create a new task.
 ```
 tasks.create(title: "Buy groceries", connector: "todoist")
 tasks.create(title: "Fix bug", connector: "linear", account: "Adavia", priority: 4)
+tasks.create(title: "Submit report", connector: "todoist", due: "tomorrow")
+tasks.create(title: "Book hotel", connector: "todoist", due: "January 1, 2026")
 ```
+
+**Due date formats** (Todoist): `today`, `tomorrow`, `next monday`, `2025-01-15`, `January 1, 2026`
 
 ### complete / reopen
 

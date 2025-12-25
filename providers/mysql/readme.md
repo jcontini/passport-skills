@@ -2,7 +2,7 @@
 id: mysql
 name: MySQL
 description: Connect to MySQL and MariaDB databases
-icon: https://cdn.simpleicons.org/mysql
+icon: simple-icons:mysql
 color: "#4479A1"
 
 website: https://www.mysql.com
@@ -72,5 +72,3 @@ For databases behind a firewall:
 - Large result sets may be truncated
 - Transactions are not supported (each query is auto-committed)
 - Some MariaDB-specific features may not work
-
-

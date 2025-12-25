@@ -2,7 +2,7 @@
 id: sqlite
 name: SQLite
 description: Connect to SQLite database files
-icon: https://cdn.simpleicons.org/sqlite
+icon: simple-icons:sqlite
 color: "#003B57"
 
 website: https://www.sqlite.org
@@ -70,5 +70,3 @@ SQLite uses file paths instead of connection strings:
 - Database is locked while another process has it open
 - In-memory databases (`:memory:`) are not supported
 - WAL mode databases require both .sqlite and .sqlite-wal files
-
-

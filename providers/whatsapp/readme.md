@@ -2,7 +2,7 @@
 id: whatsapp
 name: WhatsApp
 description: Read WhatsApp messages from local macOS database
-icon: https://cdn.simpleicons.org/whatsapp
+icon: simple-icons:whatsapp
 color: "#25D366"
 
 website: https://www.whatsapp.com/

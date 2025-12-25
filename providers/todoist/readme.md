@@ -2,7 +2,7 @@
 id: todoist
 name: Todoist
 description: Personal task management
-icon: https://cdn.simpleicons.org/todoist
+icon: simple-icons:todoist
 color: "#E44332"
 
 website: https://todoist.com
@@ -45,4 +45,3 @@ Personal task management integration.
 
 - Cannot move tasks between projects (must delete and recreate)
 - Recurring task due dates must preserve the recurrence pattern
-

@@ -1,0 +1,309 @@
+# Apple Contacts → Contacts tool mapping
+# Uses SQL for reads (fast) and AppleScript for writes (reliable iCloud sync)
+
+actions:
+  list:
+    label: "List contacts"
+    description: List contacts with optional search and sorting
+    params:
+      query: { type: string, description: "Search by name, email, phone, or organization" }
+      organization: { type: string, description: "Filter by organization" }
+      sort: { type: string, description: "Sort by: name (default), modified, created" }
+      limit: { type: number, default: 50 }
+    sql:
+      database: "~/Library/Application Support/AddressBook/Sources/*/AddressBook-v22.abcddb"
+      query: |
+        SELECT 
+          ZUNIQUEID as id,
+          ZFIRSTNAME as first_name,
+          ZLASTNAME as last_name,
+          ZMIDDLENAME as middle_name,
+          ZNICKNAME as nickname,
+          ZORGANIZATION as organization,
+          ZJOBTITLE as job_title,
+          ZDEPARTMENT as department,
+          COALESCE(ZFIRSTNAME || ' ' || ZLASTNAME, ZORGANIZATION, ZFIRSTNAME, ZLASTNAME) as display_name,
+          datetime(ZMODIFICATIONDATE + 978307200, 'unixepoch') as modified_at,
+          datetime(ZCREATIONDATE + 978307200, 'unixepoch') as created_at
+        FROM ZABCDRECORD
+        WHERE ZUNIQUEID LIKE '%:ABPerson'
+          AND (
+            '{{params.query}}' = '' 
+            OR ZFIRSTNAME LIKE '%{{params.query}}%'
+            OR ZLASTNAME LIKE '%{{params.query}}%'
+            OR ZORGANIZATION LIKE '%{{params.query}}%'
+          )
+          AND (
+            '{{params.organization}}' = ''
+            OR ZORGANIZATION LIKE '%{{params.organization}}%'
+          )
+        ORDER BY 
+          CASE '{{params.sort}}'
+            WHEN 'modified' THEN ZMODIFICATIONDATE
+            WHEN 'created' THEN ZCREATIONDATE
+            ELSE NULL
+          END DESC,
+          CASE WHEN '{{params.sort}}' NOT IN ('modified', 'created') THEN COALESCE(ZLASTNAME, ZFIRSTNAME, ZORGANIZATION) END
+        LIMIT {{params.limit | default: 50}}
+      response:
+        mapping:
+          id: "[].id"
+          first_name: "[].first_name"
+          last_name: "[].last_name"
+          middle_name: "[].middle_name"
+          nickname: "[].nickname"
+          organization: "[].organization"
+          job_title: "[].job_title"
+          department: "[].department"
+          display_name: "[].display_name"
+          modified_at: "[].modified_at"
+          created_at: "[].created_at"
+          connector: "'apple'"
+
+  search:
+    label: "Search contacts"
+    description: Search contacts by any text
+    params:
+      query: { type: string, required: true, description: "Search text" }
+      limit: { type: number, default: 50 }
+    sql:
+      database: "~/Library/Application Support/AddressBook/Sources/*/AddressBook-v22.abcddb"
+      query: |
+        SELECT DISTINCT
+          r.ZUNIQUEID as id,
+          r.ZFIRSTNAME as first_name,
+          r.ZLASTNAME as last_name,
+          r.ZORGANIZATION as organization,
+          r.ZJOBTITLE as job_title,
+          COALESCE(r.ZFIRSTNAME || ' ' || r.ZLASTNAME, r.ZORGANIZATION) as display_name
+        FROM ZABCDRECORD r
+        LEFT JOIN ZABCDPHONENUMBER p ON p.ZOWNER = r.Z_PK
+        LEFT JOIN ZABCDEMAILADDRESS e ON e.ZOWNER = r.Z_PK
+        WHERE r.ZUNIQUEID LIKE '%:ABPerson'
+          AND (
+            r.ZFIRSTNAME LIKE '%{{params.query}}%'
+            OR r.ZLASTNAME LIKE '%{{params.query}}%'
+            OR r.ZORGANIZATION LIKE '%{{params.query}}%'
+            OR p.ZFULLNUMBER LIKE '%{{params.query}}%'
+            OR e.ZADDRESS LIKE '%{{params.query}}%'
+          )
+        ORDER BY COALESCE(r.ZLASTNAME, r.ZFIRSTNAME, r.ZORGANIZATION)
+        LIMIT {{params.limit | default: 50}}
+      response:
+        mapping:
+          id: "[].id"
+          first_name: "[].first_name"
+          last_name: "[].last_name"
+          organization: "[].organization"
+          job_title: "[].job_title"
+          display_name: "[].display_name"
+          connector: "'apple'"
+
+  get:
+    label: "Get contact"
+    description: Get full contact details by ID
+    params:
+      id: { type: string, required: true, description: "Contact ID (ZUNIQUEID)" }
+    applescript:
+      script: |
+        set contactId to "{{params.id}}"
+        if contactId does not end with ":ABPerson" then
+          set contactId to contactId & ":ABPerson"
+        end if
+        
+        tell application "Contacts"
+          try
+            set p to person id contactId
+            
+            set pFirst to first name of p
+            set pLast to last name of p
+            set pMiddle to middle name of p
+            set pNick to nickname of p
+            set pOrg to organization of p
+            set pJob to job title of p
+            set pDept to department of p
+            set pNote to note of p
+            
+            if pFirst is missing value then set pFirst to ""
+            if pLast is missing value then set pLast to ""
+            if pMiddle is missing value then set pMiddle to ""
+            if pNick is missing value then set pNick to ""
+            if pOrg is missing value then set pOrg to ""
+            if pJob is missing value then set pJob to ""
+            if pDept is missing value then set pDept to ""
+            if pNote is missing value then set pNote to ""
+            
+            -- Build phones array
+            set phoneList to ""
+            repeat with ph in phones of p
+              if phoneList is not "" then set phoneList to phoneList & ","
+              set phoneList to phoneList & "{\"label\":\"" & label of ph & "\",\"value\":\"" & value of ph & "\"}"
+            end repeat
+            
+            -- Build emails array
+            set emailList to ""
+            repeat with em in emails of p
+              if emailList is not "" then set emailList to emailList & ","
+              set emailList to emailList & "{\"label\":\"" & label of em & "\",\"value\":\"" & value of em & "\"}"
+            end repeat
+            
+            -- Build URLs array
+            set urlList to ""
+            repeat with u in urls of p
+              if urlList is not "" then set urlList to urlList & ","
+              set urlList to urlList & "{\"label\":\"" & label of u & "\",\"value\":\"" & value of u & "\"}"
+            end repeat
+            
+            set output to "{"
+            set output to output & "\"id\":\"" & id of p & "\","
+            set output to output & "\"first_name\":\"" & pFirst & "\","
+            set output to output & "\"last_name\":\"" & pLast & "\","
+            set output to output & "\"middle_name\":\"" & pMiddle & "\","
+            set output to output & "\"nickname\":\"" & pNick & "\","
+            set output to output & "\"organization\":\"" & pOrg & "\","
+            set output to output & "\"job_title\":\"" & pJob & "\","
+            set output to output & "\"department\":\"" & pDept & "\","
+            set output to output & "\"notes\":\"" & pNote & "\","
+            set output to output & "\"phones\":[" & phoneList & "],"
+            set output to output & "\"emails\":[" & emailList & "],"
+            set output to output & "\"urls\":[" & urlList & "],"
+            set output to output & "\"connector\":\"apple\""
+            set output to output & "}"
+            
+            return output
+          on error errMsg
+            return "{\"error\":\"" & errMsg & "\"}"
+          end try
+        end tell
+      response:
+        mapping:
+          id: ".id"
+          first_name: ".first_name"
+          last_name: ".last_name"
+          middle_name: ".middle_name"
+          nickname: ".nickname"
+          organization: ".organization"
+          job_title: ".job_title"
+          department: ".department"
+          notes: ".notes"
+          phones: ".phones"
+          emails: ".emails"
+          urls: ".urls"
+          connector: ".connector"
+
+  create:
+    label: "Create contact"
+    description: Create a new contact
+    params:
+      first_name: { type: string, description: "First name" }
+      last_name: { type: string, description: "Last name" }
+      organization: { type: string, description: "Organization" }
+      job_title: { type: string, description: "Job title" }
+      phone: { type: string, description: "Phone number" }
+      phone_label: { type: string, default: "mobile", description: "Phone label" }
+      email: { type: string, description: "Email address" }
+      email_label: { type: string, default: "home", description: "Email label" }
+      notes: { type: string, description: "Notes" }
+    applescript:
+      script: |
+        tell application "Contacts"
+          set props to {}
+          
+          if "{{params.first_name}}" is not "" then set props to props & {first name:"{{params.first_name}}"}
+          if "{{params.last_name}}" is not "" then set props to props & {last name:"{{params.last_name}}"}
+          if "{{params.organization}}" is not "" then set props to props & {organization:"{{params.organization}}"}
+          if "{{params.job_title}}" is not "" then set props to props & {job title:"{{params.job_title}}"}
+          if "{{params.notes}}" is not "" then set props to props & {note:"{{params.notes}}"}
+          
+          set newPerson to make new person with properties props
+          
+          if "{{params.phone}}" is not "" then
+            make new phone at end of phones of newPerson with properties {label:"{{params.phone_label | default: mobile}}", value:"{{params.phone}}"}
+          end if
+          
+          if "{{params.email}}" is not "" then
+            make new email at end of emails of newPerson with properties {label:"{{params.email_label | default: home}}", value:"{{params.email}}"}
+          end if
+          
+          save
+          
+          set newId to id of newPerson
+          set displayName to ""
+          if first name of newPerson is not missing value then set displayName to first name of newPerson
+          if last name of newPerson is not missing value then set displayName to displayName & " " & last name of newPerson
+          
+          return "{\"id\":\"" & newId & "\",\"display_name\":\"" & displayName & "\",\"status\":\"created\",\"connector\":\"apple\"}"
+        end tell
+      response:
+        mapping:
+          id: ".id"
+          display_name: ".display_name"
+          status: ".status"
+          connector: ".connector"
+
+  update:
+    label: "Update contact"
+    description: Update contact fields
+    params:
+      id: { type: string, required: true, description: "Contact ID" }
+      first_name: { type: string, description: "New first name" }
+      last_name: { type: string, description: "New last name" }
+      organization: { type: string, description: "New organization" }
+      job_title: { type: string, description: "New job title" }
+      notes: { type: string, description: "New notes" }
+    applescript:
+      script: |
+        set contactId to "{{params.id}}"
+        if contactId does not end with ":ABPerson" then
+          set contactId to contactId & ":ABPerson"
+        end if
+        
+        tell application "Contacts"
+          try
+            set p to person id contactId
+            
+            if "{{params.first_name}}" is not "" then set first name of p to "{{params.first_name}}"
+            if "{{params.last_name}}" is not "" then set last name of p to "{{params.last_name}}"
+            if "{{params.organization}}" is not "" then set organization of p to "{{params.organization}}"
+            if "{{params.job_title}}" is not "" then set job title of p to "{{params.job_title}}"
+            if "{{params.notes}}" is not "" then set note of p to "{{params.notes}}"
+            
+            save
+            return "{\"id\":\"" & id of p & "\",\"status\":\"updated\",\"connector\":\"apple\"}"
+          on error errMsg
+            return "{\"error\":\"" & errMsg & "\"}"
+          end try
+        end tell
+      response:
+        mapping:
+          id: ".id"
+          status: ".status"
+          connector: ".connector"
+
+  delete:
+    label: "Delete contact"
+    description: Delete a contact
+    params:
+      id: { type: string, required: true, description: "Contact ID" }
+    applescript:
+      script: |
+        set contactId to "{{params.id}}"
+        if contactId does not end with ":ABPerson" then
+          set contactId to contactId & ":ABPerson"
+        end if
+        
+        tell application "Contacts"
+          try
+            set p to person id contactId
+            set pName to first name of p & " " & last name of p
+            delete p
+            save
+            return "{\"status\":\"deleted\",\"name\":\"" & pName & "\",\"connector\":\"apple\"}"
+          on error errMsg
+            return "{\"error\":\"" & errMsg & "\"}"
+          end try
+        end tell
+      response:
+        mapping:
+          status: ".status"
+          connector: ".connector"

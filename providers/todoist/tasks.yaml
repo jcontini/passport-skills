@@ -57,6 +57,7 @@ actions:
         priority: "{{params.priority | invert:5}}"  # Our 1=urgent → Todoist 4
         project_id: "{{params.project_id}}"
         parent_id: "{{params.parent_id}}"
+        labels: "{{params.labels}}"  # Array of label names
       response:
         mapping:
           id: ".id"
@@ -65,6 +66,7 @@ actions:
           status: "'open'"
           priority: "5 - .priority"  # Todoist 4=urgent → our 1
           due: ".due.date"
+          labels: ".labels"
           project:
             id: ".project_id"
           url: ".url"
