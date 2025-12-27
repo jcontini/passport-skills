@@ -2,7 +2,7 @@
 id: finance
 name: Finance
 description: Manage personal finances - transactions, budgets, and spending analysis
-icon: icon.svg
+icon: grommet-icons:money
 color: "#00C853"
 
 schema:
